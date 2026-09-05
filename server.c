@@ -7,6 +7,12 @@
 #include <netinet/in.h>
 
 int main(int argc, char *argv[]) {
+    if (argc != 2)
+    {
+        fprintf(stderr, "Usage: ./server.c <host>\n");
+        return 1;
+    }
+    
     const char *host = argv[1];
     
     int status;
@@ -20,10 +26,24 @@ int main(int argc, char *argv[]) {
     if ((status = getaddrinfo(host, "3490", &hints, &servinfo)) != 0)
     {
         fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(status));
+        return 1;
     }
 
-    const char *output = servinfo->ai_addr->sa_data;
+    char addr_buf[100];
+
+    if (servinfo->ai_family == AF_INET)
+    {
+        struct sockaddr_in *sa = (struct sockaddr_in *)servinfo->ai_addr;
+        inet_ntop(AF_INET, &(sa->sin_addr), addr_buf, INET_ADDRSTRLEN);
+    }
+    else
+    {
+        struct sockaddr_in6 *sa6 = (struct sockaddr_in6 *)servinfo->ai_addr;
+        inet_ntop(AF_INET6, &(sa6->sin6_addr), addr_buf, INET6_ADDRSTRLEN);
+    }
 
     printf("IP for %s:\n", host);
-    printf("%s\n", output);
+    printf("%s\n", addr_buf);
+
+    freeaddrinfo(servinfo);
 }
