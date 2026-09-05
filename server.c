@@ -6,17 +6,18 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
     if (argc != 2)
     {
         fprintf(stderr, "Usage: ./server.c <host>\n");
         return 1;
     }
-    
+
     const char *host = argv[1];
-    
+
     int status;
-    struct addrinfo hints; // pre-written struct for getaddrinfo to use
+    struct addrinfo hints;     // pre-written struct for getaddrinfo to use
     struct addrinfo *servinfo; // pointer to linked list of results
 
     memset(&hints, 0, sizeof(hints));
@@ -29,21 +30,30 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    char addr_buf[100];
+    printf("all associated IP addresses for %s:\n", host);
 
-    if (servinfo->ai_family == AF_INET)
+    for (struct addrinfo *p = servinfo; p != NULL; p = p->ai_next)
     {
-        struct sockaddr_in *sa = (struct sockaddr_in *)servinfo->ai_addr;
-        inet_ntop(AF_INET, &(sa->sin_addr), addr_buf, INET_ADDRSTRLEN);
-    }
-    else
-    {
-        struct sockaddr_in6 *sa6 = (struct sockaddr_in6 *)servinfo->ai_addr;
-        inet_ntop(AF_INET6, &(sa6->sin6_addr), addr_buf, INET6_ADDRSTRLEN);
-    }
+        char *ipver;
+        char ipstr[INET6_ADDRSTRLEN];
 
-    printf("IP for %s:\n", host);
-    printf("%s\n", addr_buf);
+        if (servinfo->ai_family == AF_INET)
+        {
+            ipver = "IPv4";
+            struct sockaddr_in *sa = (struct sockaddr_in *)servinfo->ai_addr;
+            inet_ntop(AF_INET, &(sa->sin_addr), ipstr, INET_ADDRSTRLEN);
+        }
+        else
+        {
+            ipver = "IPv6";
+            struct sockaddr_in6 *sa6 = (struct sockaddr_in6 *)servinfo->ai_addr;
+            inet_ntop(AF_INET6, &(sa6->sin6_addr), ipstr, INET6_ADDRSTRLEN);
+        }
+
+        printf("%s for %s: %s\n", ipver, host, ipstr);
+    }
 
     freeaddrinfo(servinfo);
+
+    return 0;
 }
