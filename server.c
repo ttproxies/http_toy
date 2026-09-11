@@ -8,6 +8,7 @@
 #include <errno.h>
 
 #define PORT "3490"
+#define BACKLOG 5
 
 int main(int argc, char *argv[])
 {
@@ -20,23 +21,43 @@ int main(int argc, char *argv[])
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
 
-    // Query address info
+    // Query own address info
     if ((gai_status = getaddrinfo(NULL, PORT, &hints, &res)))
     {
         fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(gai_status));
         return 1;
-
     }
 
     // Open socket
-    int s;
-    if ((s = socket(res->ai_family, res->ai_socktype, res->ai_protocol)) == -1)
+    int sockfd;
+    if ((sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol)) == -1)
     {
         fprintf(stderr, "socket error: %s\n", strerror(errno)); // socket() sets errno
         return 2;
     }
 
+    // Bind socket to port
+    int b_status = bind(sockfd, res->ai_addr, res->ai_addrlen);
+    if (b_status == -1)
+    {
+        fprintf(stderr, "bind error: %s\n", strerror(errno));
+        return 3;
+    }
 
+    // Why would you connect here. Just gosh omg ur such a dumy.
+    // Listen on port
+    int l_status = listen(sockfd, BACKLOG);
+    if (l_status == -1)
+    {
+        fprintf(stderr, "listen error: %s\n", strerror(errno));
+    }
 
+    // Accept pending connection from queue
+    struct sockaddr_storage remote_addr;
+    int new_fd = accept(sockfd, (struct sockaddr_storage *)&remote_addr, sizeof(remote_addr));
+    if (new_fd == -1)
+    {
+        fprintf(stderr, "accept error: %s\n", strerror(errno));
+    }
     return 0;
 }
