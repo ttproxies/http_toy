@@ -50,14 +50,17 @@ int main(int argc, char *argv[])
     if (l_status == -1)
     {
         fprintf(stderr, "listen error: %s\n", strerror(errno));
+        return 4;
     }
 
     // Accept pending connection from queue
     struct sockaddr_storage remote_addr;
-    int new_fd = accept(sockfd, (struct sockaddr_storage *)&remote_addr, sizeof(remote_addr));
+    int new_fd = accept(sockfd, (struct sockaddr *)&remote_addr, (socklen_t *)sizeof(remote_addr));
     if (new_fd == -1)
     {
         fprintf(stderr, "accept error: %s\n", strerror(errno));
+        return 5;
     }
+
     return 0;
 }
