@@ -23,10 +23,12 @@ void sigchld_handler(int s)
 
 struct sockaddr *get_in_addr(struct sockaddr_storage *saddr)
 {
-    if (saddr->ss_family == AF_INET)
-        { return (struct sockaddr_in *)saddr; }
-    if (saddr->ss_family == AF_INET6)
-        { return (struct sockaddr_in6 *)saddr; }
+    // if (saddr->ss_family == AF_INET)
+    //     { return (struct sockaddr_in *)saddr; }
+    // if (saddr->ss_family == AF_INET6)
+    //     { return (struct sockaddr_in6 *)saddr; }
+
+    return (struct sockaddr *)saddr;
 }
 
 int main(int argc, char *argv[])
@@ -43,9 +45,10 @@ int main(int argc, char *argv[])
     // Initialize values for getaddrinfo()
     int gai_status, sockfd, newfd;
     int yes = 1;
+    socklen_t addr_size;
     struct sigaction sa;
     struct addrinfo hints, *res, *cur;
-    struct sockaddr_storage *their_addr;
+    struct sockaddr_storage their_addr;
 
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;
@@ -100,7 +103,7 @@ int main(int argc, char *argv[])
 
     sa.sa_handler = sigchld_handler;
     sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
+    sa.sa_flags = SA_RESTART;
 
     if (sigaction(SIGCHLD, &sa, NULL) == -1) // mount new sigaction
     {
@@ -110,11 +113,14 @@ int main(int argc, char *argv[])
 
     // accept loop
     while(1) {
-        if ((newfd = accept(sockfd, get_in_addr(their_addr), sizeof their_addr)) == -1)
+        addr_size = sizeof their_addr;
+        if ((newfd = accept(sockfd, (struct sockaddr *)&their_addr, &addr_size) == -1))
         {
             perror("accept");
             continue;
         }
+
+        printf("connection\n");
 
         if (!fork()) { // child process
             close(sockfd);
