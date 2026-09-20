@@ -1,13 +1,33 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/wait.h>
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <unistd.h>
 #include <errno.h>
+#include <signal.h>
 
 #define BACKLOG 5
+
+void sigchld_handler(int s)
+{
+    (void)s;
+    int tmp_errno = errno;
+    while (waitpid(-1, NULL, WNOHANG) > 0); // Claim the souls of whatever child process has finisbed
+    errno = tmp_errno;
+}
+
+struct sockaddr *get_in_addr(struct sockaddr_storage *saddr)
+{
+    if (saddr->ss_family == AF_INET)
+        { return (struct sockaddr_in *)saddr; }
+    if (saddr->ss_family == AF_INET6)
+        { return (struct sockaddr_in6 *)saddr; }
+}
 
 int main(int argc, char *argv[])
 {
@@ -21,8 +41,11 @@ int main(int argc, char *argv[])
     const char *msg = "haloo !!!";
 
     // Initialize values for getaddrinfo()
-    int gai_status;
-    struct addrinfo hints, *res;
+    int gai_status, sockfd, newfd;
+    int yes = 1;
+    struct sigaction sa;
+    struct addrinfo hints, *res, *cur;
+    struct sockaddr_storage *their_addr;
 
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;
@@ -32,53 +55,76 @@ int main(int argc, char *argv[])
     // Query own address info
     if ((gai_status = getaddrinfo(NULL, PORT, &hints, &res)))
     {
-        fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(gai_status));
+        perror("getaddressinfo");
         return 1;
     }
 
-    // Open socket
-    int sockfd;
-    if ((sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol)) == -1)
+    for (cur = res; cur != NULL; cur = cur->ai_next)
     {
-        fprintf(stderr, "socket error: %s\n", strerror(errno)); // socket() sets errno
-        return 1;
+        if ((sockfd = socket(cur->ai_family, cur->ai_socktype, cur->ai_protocol)) == -1)
+        {
+            perror("socket");
+            continue;
+        }
+
+        // do more research on this
+        if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1)
+        {
+            perror("setsockopt");
+            return 1;
+        }
+
+        if ((newfd = bind(sockfd, cur->ai_addr, cur->ai_addrlen)) == -1)
+        {
+            perror("bind");
+            continue;
+        }
+
+        break;
     }
 
-    // Bind socket to port
-    int b_status = bind(sockfd, res->ai_addr, res->ai_addrlen);
-    if (b_status == -1)
+    // we don't need this anymore
+    freeaddrinfo(res);
+
+    if (cur == NULL)
     {
-        fprintf(stderr, "bind error: %s\n", strerror(errno));
+        perror("could not bind");
         return 1;
     }
 
-    // Why would you connect here. Just gosh omg ur such a dumy.
-    // Listen on port
-    int l_status = listen(sockfd, BACKLOG);
-    if (l_status == -1)
+    if (listen(sockfd, BACKLOG) == -1)
     {
-        fprintf(stderr, "listen error: %s\n", strerror(errno));
+        perror("listen");
         return 1;
     }
 
-    printf("server is listening on port %s\n", PORT);
+    sa.sa_handler = sigchld_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
 
-    // Accept pending connection from queue
-    struct sockaddr_storage remote_addr;
-    int new_fd = accept(sockfd, (struct sockaddr *)&remote_addr, (socklen_t *)sizeof(remote_addr)); // ugly ew
-    if (new_fd == -1)
+    if (sigaction(SIGCHLD, &sa, NULL) == -1) // mount new sigaction
     {
-        fprintf(stderr, "accept error: %s\n", strerror(errno));
+        perror("sigaction");
         return 1;
     }
 
-    // Communicate
-    int len = sizeof(*msg), bytes_sent;
-    do {
-        bytes_sent = send(sockfd, msg, len, 0);
-    } while (bytes_sent != len);
+    // accept loop
+    while(1) {
+        if ((newfd = accept(sockfd, get_in_addr(their_addr), sizeof their_addr)) == -1)
+        {
+            perror("accept");
+            continue;
+        }
 
-    freeaddressinfo(res);
+        if (!fork()) { // child process
+            close(sockfd);
+            send(newfd, msg, strlen(msg), 0);
+            close(newfd);
+            exit(0);
+        }
+
+        close(newfd);
+    }
 
     return 0;
 }
