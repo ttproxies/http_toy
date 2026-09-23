@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <signal.h>
+#include "response.h"
 
 #define BACKLOG 5
 
@@ -21,14 +22,15 @@ void sigchld_handler(int s)
     errno = tmp_errno;
 }
 
-struct sockaddr *get_in_addr(struct sockaddr_storage *saddr)
+// get sockaddr for either ipv4 or ipv6
+void *get_in_addr(struct sockaddr *saddr)
 {
-    // if (saddr->ss_family == AF_INET)
-    //     { return (struct sockaddr_in *)saddr; }
-    // if (saddr->ss_family == AF_INET6)
-    //     { return (struct sockaddr_in6 *)saddr; }
+    if (saddr->sa_family == AF_INET)
+    {
+        return &(((struct sockaddr_in *)saddr)->sin_addr);
+    }
 
-    return (struct sockaddr *)saddr;
+    return &(((struct sockaddr_in6 *)saddr)->sin6_addr);
 }
 
 int main(int argc, char *argv[])
@@ -40,7 +42,7 @@ int main(int argc, char *argv[])
     }
 
     const char *PORT = argv[1];
-    const char *msg = "haloo !!!";
+    const char *msg = response;
 
     // Initialize values for getaddrinfo()
     int gai_status, sockfd, newfd;
@@ -114,7 +116,7 @@ int main(int argc, char *argv[])
     // accept loop
     while(1) {
         addr_size = sizeof their_addr;
-        if ((newfd = accept(sockfd, (struct sockaddr *)&their_addr, &addr_size) == -1))
+        if ((newfd = accept(sockfd, get_in_addr((struct sockaddr *)&their_addr), &addr_size)) == -1)
         {
             perror("accept");
             continue;
@@ -124,7 +126,11 @@ int main(int argc, char *argv[])
 
         if (!fork()) { // child process
             close(sockfd);
-            send(newfd, msg, strlen(msg), 0);
+            if (send(newfd, msg, strlen(msg), 0) == -1)
+            {
+                perror("send");
+            }
+            printf("sent response, closing socket\n");
             close(newfd);
             exit(0);
         }

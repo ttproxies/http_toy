@@ -1,0 +1,1 @@
+const char *response = "HTTP/1.1 200 OK\r\nDate: Thu, 23 Sep 2026 4:35:34 GMT\r\nServer: survurr\r\nContent-Type: text/html; charset=utf-8\r\n\r\n<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"></head><body><h1>Hello!</h1></body></html>";
